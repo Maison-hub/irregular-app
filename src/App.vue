@@ -48,22 +48,19 @@ onMounted(() => {
     <header class="card hero-card">
       <div class="hero-copy">
         <span class="eyebrow">Irregular Verbs Trainer</span>
-        <h1>Une révision rapide, nette et agréable des verbes irréguliers.</h1>
-        <p>
-          100% côté client, pensée pour GitHub Pages, avec feedback immédiat, raccourcis clavier et
-          progression sauvegardée localement.
-        </p>
+        <h1>Révise les verbes irréguliers rapidement.</h1>
+        <p>Entraînement local avec correction immédiate et progression sauvegardée.</p>
       </div>
 
       <div class="hero-pills">
         <span class="hero-pill">Vue 3 + Vite</span>
         <span class="hero-pill">Sans backend</span>
-        <span class="hero-pill">Responsive</span>
+        <span class="hero-pill">Feedback immédiat</span>
         <span class="hero-pill">Prête hors ligne</span>
       </div>
     </header>
 
-    <div class="app-layout">
+    <div class="app-layout" :class="{ 'app-layout--quiz': currentExercise }">
       <main class="main-column">
         <section v-if="isLoading" class="card state-card">
           <div class="section-heading">
@@ -112,7 +109,7 @@ onMounted(() => {
         </section>
       </main>
 
-      <aside class="side-column">
+      <aside class="side-column" :class="{ 'side-column--quiz': currentExercise }">
         <ProgressPanel
           :stats="stats"
           :current-mode="currentMode"
@@ -128,8 +125,8 @@ onMounted(() => {
 
           <ul class="tips-list">
             <li><kbd>Tab</kbd> pour passer d’un champ à l’autre</li>
-            <li><kbd>Entrée</kbd> pour valider ou passer au verbe suivant</li>
-            <li><kbd>Ctrl</kbd> + <kbd>Espace</kbd> ou <kbd>?</kbd> pour voir la réponse</li>
+            <li><kbd>Entrée</kbd> pour valider, puis encore <kbd>Entrée</kbd> pour continuer</li>
+            <li><kbd>Espace</kbd> pour voir ou masquer la réponse</li>
           </ul>
         </section>
 
@@ -147,4 +144,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-

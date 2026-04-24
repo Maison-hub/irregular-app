@@ -21,6 +21,7 @@ const emit = defineEmits(['resolved', 'next', 'change-mode']);
 
 const answers = reactive({});
 const inputRefs = {};
+const isAnswerPreviewVisible = ref(false);
 const result = ref(null);
 const nextButtonRef = ref(null);
 
@@ -84,6 +85,7 @@ function focusFirstPendingField() {
 }
 
 function resetForm() {
+  isAnswerPreviewVisible.value = false;
   result.value = null;
 
   Object.keys(answers).forEach((key) => {
@@ -97,7 +99,7 @@ function resetForm() {
   focusFirstPendingField();
 }
 
-function applyEvaluation(revealed = false) {
+function applyEvaluation() {
   const fieldResults = Object.fromEntries(
     props.exercise.fields.map((field) => {
       if (field.locked) {
@@ -125,12 +127,10 @@ function applyEvaluation(revealed = false) {
     }),
   );
 
-  const success =
-    !revealed && editableFields.value.every((field) => fieldResults[field.key]?.correct);
+  const success = editableFields.value.every((field) => fieldResults[field.key]?.correct);
 
   result.value = {
     success,
-    revealed,
     fieldResults,
   };
 
@@ -151,15 +151,38 @@ function handleSubmit() {
     return;
   }
 
-  applyEvaluation(false);
+  isAnswerPreviewVisible.value = false;
+  applyEvaluation();
 }
 
-function revealAnswer() {
+function toggleAnswerPreview() {
   if (result.value) {
     return;
   }
 
-  applyEvaluation(true);
+  isAnswerPreviewVisible.value = !isAnswerPreviewVisible.value;
+}
+
+function shouldTogglePreviewWithSpace(event) {
+  if (event.code !== 'Space' || event.ctrlKey || event.altKey || event.metaKey) {
+    return false;
+  }
+
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return true;
+  }
+
+  if (target.tagName === 'INPUT') {
+    return target.dataset.fieldKind !== 'translation';
+  }
+
+  if (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+    return false;
+  }
+
+  return true;
 }
 
 function handleGlobalKeydown(event) {
@@ -167,23 +190,27 @@ function handleGlobalKeydown(event) {
     return;
   }
 
-  if (event.key === 'Enter' && result.value) {
+  if (shouldTogglePreviewWithSpace(event)) {
     event.preventDefault();
-    emit('next');
+    toggleAnswerPreview();
     return;
   }
 
-  const isRevealShortcut = event.key === '?' || (event.ctrlKey && event.code === 'Space');
+  const isRevealShortcut = event.key === '?';
 
   if (isRevealShortcut && !result.value) {
     event.preventDefault();
-    revealAnswer();
+    toggleAnswerPreview();
   }
 }
 
 function getShellStateClass(field) {
   if (field.locked) {
     return 'is-locked';
+  }
+
+  if (isAnswerPreviewVisible.value && !result.value) {
+    return 'is-preview';
   }
 
   if (!result.value) {
@@ -206,7 +233,7 @@ function getFieldFeedback(field) {
     return 'Forme donnée pour cette manche.';
   }
 
-  if (!result.value) {
+  if (!result.value && !isAnswerPreviewVisible.value) {
     if (field.kind === 'translation') {
       return 'Une traduction seule ou la chaîne complète sont acceptées.';
     }
@@ -218,13 +245,55 @@ function getFieldFeedback(field) {
     return ' ';
   }
 
+  if (isAnswerPreviewVisible.value && !result.value) {
+    return 'Réponse affichée ci-dessous.';
+  }
+
   const fieldResult = result.value.fieldResults[field.key];
 
   if (fieldResult.correct) {
-    return result.value.revealed ? 'Ta réponse était déjà bonne.' : 'Juste.';
+    return 'Juste.';
   }
 
-  return `Bonne réponse : ${field.answer}`;
+  return 'Compare avec la correction ci-dessous.';
+}
+
+function shouldShowAnswerReveal(field) {
+  if (field.locked) {
+    return false;
+  }
+
+  if (isAnswerPreviewVisible.value && !result.value) {
+    return true;
+  }
+
+  if (!result.value) {
+    return false;
+  }
+
+  return !result.value.fieldResults[field.key]?.correct;
+}
+
+function getAnswerRevealLabel(field) {
+  if (isAnswerPreviewVisible.value && !result.value) {
+    return 'Réponse attendue';
+  }
+
+  return 'Correction';
+}
+
+function getAnswerRevealValue(field) {
+  return result.value?.fieldResults[field.key]?.expected ?? field.answer;
+}
+
+function getProvidedAnswer(field) {
+  const provided = result.value?.fieldResults[field.key]?.provided;
+
+  if (!provided || !String(provided).trim()) {
+    return '';
+  }
+
+  return String(provided).trim();
 }
 
 watch(
@@ -300,10 +369,11 @@ onUnmounted(() => {
             :class="getInputStateClass(field)"
             :disabled="Boolean(result)"
             :placeholder="field.kind === 'translation' ? 'Ta traduction' : 'Ta réponse'"
+            :data-field-kind="field.kind"
             autocomplete="off"
             autocapitalize="none"
             spellcheck="false"
-            @keydown.enter.prevent="handleSubmit"
+            @keydown.enter.prevent.stop="handleSubmit"
           />
 
           <div v-else class="field-display">
@@ -311,24 +381,51 @@ onUnmounted(() => {
           </div>
 
           <span class="field-feedback">{{ getFieldFeedback(field) }}</span>
+
+          <div
+            v-if="shouldShowAnswerReveal(field)"
+            class="answer-reveal"
+            :class="isAnswerPreviewVisible && !result ? 'answer-reveal--preview' : 'answer-reveal--correction'"
+          >
+            <span class="answer-reveal-label">{{ getAnswerRevealLabel(field) }}</span>
+            <strong class="answer-reveal-value">{{ getAnswerRevealValue(field) }}</strong>
+            <span
+              v-if="result && getProvidedAnswer(field)"
+              class="answer-reveal-meta"
+            >
+              Ta saisie : {{ getProvidedAnswer(field) }}
+            </span>
+          </div>
         </label>
       </div>
 
-      <div v-if="result" class="result-banner" :class="result.success ? 'result-banner--success celebrate' : 'result-banner--error soft-shake'">
+      <div
+        v-if="result || isAnswerPreviewVisible"
+        class="result-banner"
+        :class="
+          result
+            ? result.success
+              ? 'result-banner--success celebrate'
+              : 'result-banner--error soft-shake'
+            : 'result-banner--preview'
+        "
+      >
         <strong>
           {{
-            result.success
+            result
+              ? result.success
               ? 'Parfait, réponse validée.'
-              : result.revealed
-                ? 'Réponse affichée.'
-                : 'On corrige doucement.'
+              : 'On corrige doucement.'
+              : 'Réponse affichée.'
           }}
         </strong>
         <span>
           {{
-            result.success
+            result
+              ? result.success
               ? 'Ce verbe reculera dans la file pour laisser la place à ceux à renforcer.'
-              : 'Les bonnes réponses restent visibles pour aider la mémorisation.'
+              : 'Les corrections sont affichées sous les champs à reprendre.'
+              : 'Les réponses attendues sont mises en évidence sous chaque champ.'
           }}
         </span>
       </div>
@@ -347,9 +444,9 @@ onUnmounted(() => {
           v-if="!result"
           class="ghost-button"
           type="button"
-          @click="revealAnswer"
+          @click="toggleAnswerPreview"
         >
-          Voir la réponse
+          {{ isAnswerPreviewVisible ? 'Masquer la réponse' : 'Voir la réponse' }}
         </button>
 
         <button
@@ -358,6 +455,7 @@ onUnmounted(() => {
           class="primary-button"
           type="button"
           @click="$emit('next')"
+          @keydown.enter.prevent.stop="$emit('next')"
         >
           Suivant
         </button>
@@ -370,11 +468,10 @@ onUnmounted(() => {
           {{
             result
               ? 'Entrée pour continuer'
-              : 'Entrée pour valider, Ctrl + Espace ou ? pour révéler'
+              : 'Entrée pour valider, Espace pour révéler ou masquer'
           }}
         </span>
       </div>
     </form>
   </article>
 </template>
-
