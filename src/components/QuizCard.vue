@@ -347,7 +347,7 @@ onUnmounted(() => {
       <span class="prompt-label">{{ exercise.promptTitle }}</span>
       <strong class="prompt-value">{{ exercise.promptValue }}</strong>
       <span v-if="exercise.revealedField" class="reveal-chip">
-        {{ exercise.revealedField.label }} donné
+        Indice : {{ exercise.revealedField.label }}
       </span>
     </div>
 

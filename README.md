@@ -4,12 +4,13 @@ Petite application Vue 3 + Vite pour réviser les verbes irréguliers anglais à
 
 ## Fonctionnalités
 
-- Deux modes d’exercice :
+- Trois modes d’exercice :
   - Français → Anglais
   - Anglais → Complet
+  - Aléatoire → Complet
 - Un verbe à la fois, dans un ordre mélangé
 - Validation au clavier avec `Entrée`
-- Raccourcis `Ctrl + Espace` ou `?` pour afficher la réponse
+- Raccourcis `Espace` ou `?` pour afficher ou masquer la réponse
 - Feedback visuel immédiat sur les champs justes et faux
 - Progression sauvegardée dans `localStorage`
 - Sélection pondérée pour éviter de revoir trop vite les verbes déjà connus

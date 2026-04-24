@@ -1,10 +1,16 @@
 import { computed, ref } from 'vue';
 
 const ENGLISH_FIELDS = [
-  { key: 'infinitive', label: 'Infinitif' },
-  { key: 'preterit', label: 'Prétérit' },
-  { key: 'participle', label: 'Participe passé' },
+  { key: 'infinitive', label: 'Infinitif', kind: 'english' },
+  { key: 'preterit', label: 'Prétérit', kind: 'english' },
+  { key: 'participle', label: 'Participe passé', kind: 'english' },
 ];
+const TRANSLATION_FIELD = {
+  key: 'translation',
+  label: 'Traduction',
+  kind: 'translation',
+};
+const COMPLETE_FIELDS = [...ENGLISH_FIELDS, TRANSLATION_FIELD];
 
 export const QUIZ_MODES = [
   {
@@ -19,6 +25,13 @@ export const QUIZ_MODES = [
     description:
       'Une forme anglaise est révélée au hasard. Complète les deux autres formes et la traduction.',
     hint: 'Plus varié, idéal pour casser les automatismes.',
+  },
+  {
+    id: 'random-to-complete',
+    title: 'Aléatoire → Complet (mode examen)',
+    description:
+      'L’indice peut être une forme anglaise ou la traduction. Complète le reste de la fiche.',
+    hint: 'Le mode le plus imprévisible pour vérifier la maîtrise globale.',
   },
 ];
 
@@ -92,34 +105,42 @@ function pickWeightedVerb(verbs, getVerbProgress, recentIds, previousVerbId) {
   return weightedPool[weightedPool.length - 1]?.verb ?? null;
 }
 
-function buildExercise(verb, modeId) {
-  const revealedKey = modeId === 'en-to-complete' ? pickRandomItem(ENGLISH_FIELDS).key : null;
-  const fields = ENGLISH_FIELDS.map((field) => ({
-    ...field,
-    kind: 'english',
-    answer: verb[field.key],
-    locked: modeId === 'en-to-complete' && field.key === revealedKey,
-    initialValue: modeId === 'en-to-complete' && field.key === revealedKey ? verb[field.key] : '',
-  }));
+function buildExerciseField(field, verb, revealedKey = null) {
+  const answer = verb[field.key];
+  const locked = field.key === revealedKey;
 
-  if (modeId === 'en-to-complete') {
-    fields.push({
-      key: 'translation',
-      label: 'Traduction',
-      kind: 'translation',
-      answer: verb.translation,
-      locked: false,
-      initialValue: '',
-    });
+  return {
+    ...field,
+    answer,
+    locked,
+    initialValue: locked ? answer : '',
+  };
+}
+
+function buildExercise(verb, modeId) {
+  if (modeId === 'fr-to-en') {
+    return {
+      key: `${verb.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      verb,
+      modeId,
+      promptTitle: 'Traduction française',
+      promptValue: verb.translation,
+      revealedField: null,
+      fields: ENGLISH_FIELDS.map((field) => buildExerciseField(field, verb)),
+    };
   }
+
+  const revealPool = modeId === 'random-to-complete' ? COMPLETE_FIELDS : ENGLISH_FIELDS;
+  const revealedField = pickRandomItem(revealPool);
+  const fields = COMPLETE_FIELDS.map((field) => buildExerciseField(field, verb, revealedField.key));
 
   return {
     key: `${verb.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     verb,
     modeId,
-    promptTitle: modeId === 'fr-to-en' ? 'Traduction française' : 'Forme donnée',
-    promptValue: modeId === 'fr-to-en' ? verb.translation : verb[revealedKey],
-    revealedField: revealedKey ? ENGLISH_FIELDS.find((field) => field.key === revealedKey) : null,
+    promptTitle: 'Indice donné',
+    promptValue: verb[revealedField.key],
+    revealedField,
     fields,
   };
 }
@@ -184,4 +205,3 @@ export function useQuiz(verbsRef, getVerbProgress) {
     clearMode,
   };
 }
-
