@@ -8,7 +8,8 @@ import { useProgress } from './composables/useProgress';
 import { QUIZ_MODES, useQuiz } from './composables/useQuiz';
 
 const { verbs, isLoading, error, loadVerbs } = useCsvVerbs();
-const { stats, getVerbProgress, recordAttempt, resetProgress } = useProgress(verbs);
+const { stats, getVerbProgress, recordAttempt, forgiveLastMistake, resetProgress } =
+  useProgress(verbs);
 const { mode, currentMode, currentExercise, nextExercise, startMode, clearMode } = useQuiz(
   verbs,
   getVerbProgress,
@@ -20,6 +21,10 @@ const currentVerbProgress = computed(() =>
 
 function handleResolved({ verbId, success }) {
   recordAttempt(verbId, { success });
+}
+
+function handleForgiveTypo({ verbId }) {
+  forgiveLastMistake(verbId);
 }
 
 function handleResetProgress() {
@@ -96,6 +101,7 @@ onMounted(() => {
           :mode="currentMode"
           :verb-progress="currentVerbProgress"
           @resolved="handleResolved"
+          @forgive-typo="handleForgiveTypo"
           @next="nextExercise"
           @change-mode="clearMode"
         />

@@ -17,11 +17,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['resolved', 'next', 'change-mode']);
+const emit = defineEmits(['resolved', 'forgive-typo', 'next', 'change-mode']);
 
 const answers = reactive({});
 const inputRefs = {};
 const isAnswerPreviewVisible = ref(false);
+const isTypoForgiven = ref(false);
 const result = ref(null);
 const nextButtonRef = ref(null);
 
@@ -35,6 +36,52 @@ const cardStateClass = computed(() => {
   }
 
   return result.value.success ? 'is-success' : 'is-error';
+});
+const isForgivenMistake = computed(() => Boolean(result.value && !result.value.success && isTypoForgiven.value));
+const resultBannerClass = computed(() => {
+  if (!result.value) {
+    return 'result-banner--preview';
+  }
+
+  if (result.value.success) {
+    return 'result-banner--success celebrate';
+  }
+
+  if (isForgivenMistake.value) {
+    return 'result-banner--forgiven';
+  }
+
+  return 'result-banner--error soft-shake';
+});
+const resultBannerTitle = computed(() => {
+  if (!result.value) {
+    return 'Réponse affichée.';
+  }
+
+  if (result.value.success) {
+    return 'Parfait, réponse validée.';
+  }
+
+  if (isForgivenMistake.value) {
+    return 'Faute de frappe ignorée.';
+  }
+
+  return 'On corrige doucement.';
+});
+const resultBannerMessage = computed(() => {
+  if (!result.value) {
+    return 'Les réponses attendues sont mises en évidence sous chaque champ.';
+  }
+
+  if (result.value.success) {
+    return 'Ce verbe reculera dans la file pour laisser la place à ceux à renforcer.';
+  }
+
+  if (isForgivenMistake.value) {
+    return 'Cette tentative est maintenant comptée comme juste, même si la correction reste affichée.';
+  }
+
+  return 'Les corrections sont affichées sous les champs à reprendre.';
 });
 const memoryHint = computed(() =>
   props.verbProgress?.known
@@ -86,6 +133,7 @@ function focusFirstPendingField() {
 
 function resetForm() {
   isAnswerPreviewVisible.value = false;
+  isTypoForgiven.value = false;
   result.value = null;
 
   Object.keys(answers).forEach((key) => {
@@ -161,6 +209,17 @@ function toggleAnswerPreview() {
   }
 
   isAnswerPreviewVisible.value = !isAnswerPreviewVisible.value;
+}
+
+function handleForgiveTypo() {
+  if (!result.value || result.value.success || isTypoForgiven.value) {
+    return;
+  }
+
+  isTypoForgiven.value = true;
+  emit('forgive-typo', {
+    verbId: props.exercise.verb.id,
+  });
 }
 
 function shouldTogglePreviewWithSpace(event) {
@@ -402,32 +461,10 @@ onUnmounted(() => {
       <div
         v-if="result || isAnswerPreviewVisible"
         class="result-banner"
-        :class="
-          result
-            ? result.success
-              ? 'result-banner--success celebrate'
-              : 'result-banner--error soft-shake'
-            : 'result-banner--preview'
-        "
+        :class="resultBannerClass"
       >
-        <strong>
-          {{
-            result
-              ? result.success
-              ? 'Parfait, réponse validée.'
-              : 'On corrige doucement.'
-              : 'Réponse affichée.'
-          }}
-        </strong>
-        <span>
-          {{
-            result
-              ? result.success
-              ? 'Ce verbe reculera dans la file pour laisser la place à ceux à renforcer.'
-              : 'Les corrections sont affichées sous les champs à reprendre.'
-              : 'Les réponses attendues sont mises en évidence sous chaque champ.'
-          }}
-        </span>
+        <strong>{{ resultBannerTitle }}</strong>
+        <span>{{ resultBannerMessage }}</span>
       </div>
 
       <div class="footer-actions">
@@ -458,6 +495,16 @@ onUnmounted(() => {
           @keydown.enter.prevent.stop="$emit('next')"
         >
           Suivant
+        </button>
+
+        <button
+          v-if="result && !result.success"
+          class="ghost-button ghost-button--warm"
+          type="button"
+          :disabled="isTypoForgiven"
+          @click="handleForgiveTypo"
+        >
+          {{ isTypoForgiven ? 'Compté comme faute de frappe' : "j'vais raison" }}
         </button>
 
         <button class="ghost-button" type="button" @click="$emit('change-mode')">

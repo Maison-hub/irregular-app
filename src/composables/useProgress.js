@@ -27,6 +27,18 @@ function sanitizeEntry(entry = {}) {
   };
 }
 
+function buildAttemptEntry(current, success, lastAttempt = new Date().toISOString()) {
+  return {
+    ...current,
+    goodCount: success ? current.goodCount + 1 : current.goodCount,
+    errorCount: success ? current.errorCount : current.errorCount + 1,
+    known: success ? true : current.known,
+    lastAttempt,
+    streak: success ? current.streak + 1 : 0,
+    lastResult: success ? 'success' : 'error',
+  };
+}
+
 function readStorage() {
   if (typeof window === 'undefined') {
     return {};
@@ -55,6 +67,7 @@ function readStorage() {
 
 export function useProgress(verbsRef) {
   const progress = ref(readStorage());
+  const lastAttemptBases = {};
 
   watch(
     progress,
@@ -98,18 +111,32 @@ export function useProgress(verbsRef) {
 
   function recordAttempt(verbId, { success }) {
     const current = getVerbProgress(verbId);
+    const timestamp = new Date().toISOString();
+
+    lastAttemptBases[verbId] = current;
 
     progress.value = {
       ...progress.value,
-      [verbId]: {
-        ...current,
-        goodCount: success ? current.goodCount + 1 : current.goodCount,
-        errorCount: success ? current.errorCount : current.errorCount + 1,
-        known: success ? true : current.known,
-        lastAttempt: new Date().toISOString(),
-        streak: success ? current.streak + 1 : 0,
-        lastResult: success ? 'success' : 'error',
-      },
+      [verbId]: buildAttemptEntry(current, success, timestamp),
+    };
+  }
+
+  function forgiveLastMistake(verbId) {
+    const baseEntry = lastAttemptBases[verbId];
+
+    if (!baseEntry) {
+      return;
+    }
+
+    const current = getVerbProgress(verbId);
+
+    if (current.lastResult !== 'error') {
+      return;
+    }
+
+    progress.value = {
+      ...progress.value,
+      [verbId]: buildAttemptEntry(baseEntry, true, current.lastAttempt ?? new Date().toISOString()),
     };
   }
 
@@ -142,7 +169,7 @@ export function useProgress(verbsRef) {
     stats,
     getVerbProgress,
     recordAttempt,
+    forgiveLastMistake,
     resetProgress,
   };
 }
-
