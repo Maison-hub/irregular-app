@@ -504,7 +504,7 @@ onUnmounted(() => {
           :disabled="isTypoForgiven"
           @click="handleForgiveTypo"
         >
-          {{ isTypoForgiven ? 'Compté comme faute de frappe' : "j'vais raison" }}
+          {{ isTypoForgiven ? 'Compté comme faute de frappe' : "j'avais raison" }}
         </button>
 
         <button class="ghost-button" type="button" @click="$emit('change-mode')">
