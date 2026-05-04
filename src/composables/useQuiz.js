@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { normalizeText } from '../utils/normalize';
 
 const ENGLISH_FIELDS = [
   { key: 'infinitive', label: 'Infinitif', kind: 'english' },
@@ -117,7 +118,34 @@ function buildExerciseField(field, verb, revealedKey = null) {
   };
 }
 
-function buildExercise(verb, modeId) {
+function buildRevealSignature(field, verb) {
+  return `${field.key}:${normalizeText(verb[field.key])}`;
+}
+
+function buildRevealCounts(verbs) {
+  const counts = new Map();
+
+  verbs.forEach((verb) => {
+    COMPLETE_FIELDS.forEach((field) => {
+      const signature = buildRevealSignature(field, verb);
+
+      counts.set(signature, (counts.get(signature) ?? 0) + 1);
+    });
+  });
+
+  return counts;
+}
+
+function pickRevealField(verb, revealPool, revealCounts) {
+  // Only reveal a clue that uniquely identifies the verb in the current dataset.
+  const uniqueFields = revealPool.filter(
+    (field) => (revealCounts.get(buildRevealSignature(field, verb)) ?? 0) === 1,
+  );
+
+  return pickRandomItem(uniqueFields.length ? uniqueFields : revealPool);
+}
+
+function buildExercise(verb, modeId, revealCounts) {
   if (modeId === 'fr-to-en') {
     return {
       key: `${verb.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -131,7 +159,7 @@ function buildExercise(verb, modeId) {
   }
 
   const revealPool = modeId === 'random-to-complete' ? COMPLETE_FIELDS : ENGLISH_FIELDS;
-  const revealedField = pickRandomItem(revealPool);
+  const revealedField = pickRevealField(verb, revealPool, revealCounts);
   const fields = COMPLETE_FIELDS.map((field) => buildExerciseField(field, verb, revealedField.key));
 
   return {
@@ -165,6 +193,8 @@ export function useQuiz(verbsRef, getVerbProgress) {
       return;
     }
 
+    const revealCounts = buildRevealCounts(verbsRef.value);
+
     const nextVerb = pickWeightedVerb(
       verbsRef.value,
       getVerbProgress,
@@ -179,7 +209,7 @@ export function useQuiz(verbsRef, getVerbProgress) {
 
     previousVerbId.value = nextVerb.id;
     updateRecentIds(nextVerb.id);
-    currentExercise.value = buildExercise(nextVerb, mode.value);
+    currentExercise.value = buildExercise(nextVerb, mode.value, revealCounts);
   }
 
   function startMode(modeId) {
